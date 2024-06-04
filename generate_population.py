@@ -3,7 +3,7 @@ from load_data import X_train, X_val, y_train, y_val
 # from load_iris_dataset import *
 
 
-
+n_epoches = 100
 num_neuron_pop = 50
 num_neuron_connect = 7
 num_input_neurons = X_train.shape[1]
