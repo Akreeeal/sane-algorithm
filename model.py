@@ -37,6 +37,7 @@ class Model:
             act = self.ReLU
 
         W1, W2 = self.create_weight_matrix()
+
         return self.SoftMax(np.matmul(act(np.matmul(x, W1)), W2))
 
     def ReLU(self, x):
