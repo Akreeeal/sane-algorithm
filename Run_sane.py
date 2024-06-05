@@ -1,14 +1,33 @@
 import numpy as np
+from matplotlib.figure import Figure
+
 from generate_population import (generate_population,
                                  num_neuron_pop, num_input_neurons,
                                  num_hidden_neurons,num_output_neurons)
 from load_data import X_train, y_train, X_val, y_val
 from crossover import crossover
 from model import Model
-from sklearn.metrics import log_loss
+from sklearn.metrics import log_loss, accuracy_score
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 
+def make_charts(graph_data, save_img=False):
+    figure = Figure(figsize=(12, 5), dpi=100)
+
+    ax_loss = figure.add_subplot(1, 2, 1)
+    ax_loss.plot(graph_data["loss_array_train"], color="blue", label="train")
+    ax_loss.plot(graph_data["loss_array_test"], color="orange", label="val")
+    ax_loss.set_xlabel("epoch")
+    ax_loss.set_ylabel("loss")
+    ax_loss.legend()
+
+    ax_accuracy = figure.add_subplot(1, 2, 2)
+    ax_accuracy.plot(graph_data["acc_array_train"], color="blue", label="train")
+    ax_accuracy.plot(graph_data["acc_array_test"], color="orange", label="val")
+    ax_accuracy.set_xlabel("epoch")
+    ax_accuracy.set_ylabel("accuracy")
+    ax_accuracy.legend()
 
 def update_neuron_fitness(n_fit, n_ids_in, loss):
     """
@@ -49,12 +68,15 @@ def mutaion(population):
     return population
 
 
-def run_algorithm():
+def run_algorithm(n_epoches):
+    loss_array_train = []  # массив для хранения значений потерь на тренировочном наборе данных
+    loss_array_test = []  # массив для хранения значений потерь на валидационном наборе данных
+    acc_array_train = []  # массив для хранения значений точности на тренировочном наборе данных
+    acc_array_test = []  # массив для хранения значений точности на валидационном наборе данных
 
-    n_epoches = 10
     epoch = 0
     fitness_func = log_loss
-    lost_arr = []
+    loss_history = []
 
 
     population = generate_population()
@@ -83,35 +105,76 @@ def run_algorithm():
                 num_hidden_neurons
             )
 
-            preds = model.forward(X_train, f='relu')
-            loss = fitness_func(y_train, preds)
+            # preds = model.forward(X_train, f='relu')
+            # loss = fitness_func(y_train, preds)
 
-            if loss < best_loss:
-                best_loss = loss
+            preds_train = model.forward(X_train, f='relu')
+            loss_train = fitness_func(y_train, preds_train)
+            loss_array_train.append(loss_train)
 
+            preds_val = model.forward(X_val, f='relu')
+            loss_val = fitness_func(y_val, preds_val)
+            loss_array_test.append(loss_val)
+
+            acc_train = accuracy_score(y_train, one_hot_from_softmax(preds_train))
+            acc_array_train.append(acc_train)
+
+            acc_val = accuracy_score(y_val, one_hot_from_softmax(preds_val))
+            acc_array_test.append(acc_val)
+
+            if loss_train  < best_loss:
+                best_loss = loss_train
+
+            loss_history.append(best_loss)
+            best_model = model
 
             neuron_fitness = update_neuron_fitness(neuron_fitness,
-                                                       random_NN, loss)
+                                                       random_NN, loss_train)
 
         neuron_fitness /= num_neuron_include
 
         sort_ids = np.argsort(neuron_fitness)
         population = population[sort_ids]
 
-        population = crossover(population) # кросинговер нейронов
-        population = mutaion(population) #мутация нейронов
-
+        population = crossover(population)  # кросинговер нейронов
+        population = mutaion(population)  # мутация нейронов
 
         pbar.update(1)
         epoch += 1
+
+        preds_val = best_model.forward(X_val)
+        print(accuracy_score(y_val, one_hot_from_softmax(preds_val)))
 
         print(best_loss)
 
     pbar.close()
 
+    return loss_history, loss_array_train, loss_array_test, acc_array_train, acc_array_test
+
+def one_hot_from_softmax(softmax_array):
+    one_hot_array = np.zeros_like(softmax_array)
+    max_indices = np.argmax(softmax_array, axis=1)
+    for i, max_index in enumerate(max_indices):
+        one_hot_array[i, max_index] = 1
+    return one_hot_array
+
+
+
 
 if __name__=='__main__':
-    run_algorithm()
+
+    n_epoches = 1
+    loss_history,loss_array_train, loss_array_test, acc_array_train, acc_array_test = run_algorithm(n_epoches)
+
+    graph_data = {
+        "loss_array_train": loss_array_train,
+        "loss_array_test": loss_array_test,
+        "acc_array_train": acc_array_train,
+        "acc_array_test": acc_array_test
+    }
+
+    make_charts(graph_data)
+
 
 
 
