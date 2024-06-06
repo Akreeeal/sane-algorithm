@@ -1,33 +1,47 @@
 import numpy as np
-from matplotlib.figure import Figure
-
 from generate_population import (generate_population,
                                  num_neuron_pop, num_input_neurons,
                                  num_hidden_neurons,num_output_neurons)
 from load_data import X_train, y_train, X_val, y_val
-from crossover import crossover
 from model import Model
 from sklearn.metrics import log_loss, accuracy_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from parameters import TOTAL_EPOCHES, PATIENCE
+import time
 
+
+
+
+
+def one_hot_from_softmax(softmax_array):
+    one_hot_array = np.zeros_like(softmax_array)
+    max_indices = np.argmax(softmax_array, axis=1)
+    for i, max_index in enumerate(max_indices):
+        one_hot_array[i, max_index] = 1
+    return one_hot_array
 
 def make_charts(graph_data, save_img=False):
-    figure = Figure(figsize=(12, 5), dpi=100)
+    fig, (ax_loss, ax_accuracy) = plt.subplots(1, 2, figsize=(12, 5), dpi=100)
 
-    ax_loss = figure.add_subplot(1, 2, 1)
-    ax_loss.plot(graph_data["loss_array_train"], color="blue", label="train")
-    ax_loss.plot(graph_data["loss_array_test"], color="orange", label="val")
-    ax_loss.set_xlabel("epoch")
-    ax_loss.set_ylabel("loss")
+    ax_loss.plot(graph_data["loss_array_train"], color="orange", label="train")
+    ax_loss.plot(graph_data["loss_array_test"], color="blue", label="val")
+    ax_loss.set_xlabel("Эпоха")
+    ax_loss.set_ylabel("Ошибка")
     ax_loss.legend()
+    ax_loss.set_title("Потери на протяжении эпох")
 
-    ax_accuracy = figure.add_subplot(1, 2, 2)
-    ax_accuracy.plot(graph_data["acc_array_train"], color="blue", label="train")
-    ax_accuracy.plot(graph_data["acc_array_test"], color="orange", label="val")
-    ax_accuracy.set_xlabel("epoch")
-    ax_accuracy.set_ylabel("accuracy")
+    ax_accuracy.plot(graph_data["acc_array_train"], color="orange", label="train")
+    ax_accuracy.plot(graph_data["acc_array_test"], color="blue", label="val")
+    ax_accuracy.set_xlabel("Эпоха")
+    ax_accuracy.set_ylabel("Точность")
     ax_accuracy.legend()
+    ax_accuracy.set_title("Точность на протяжении эпох")
+
+    plt.tight_layout()
+    if save_img:
+        plt.savefig("График обучения на 500 эпохах.png")
+    plt.show()
 
 def update_neuron_fitness(n_fit, n_ids_in, loss):
     """
@@ -56,9 +70,7 @@ def crossover(population):
 
     return population
 
-def mutaion(population):
-    p = 0.001
-    # p_id = 1 - (1 - p) ** 8
+def mutation(population):
     p_weight = 0.08
     for i in range(num_neuron_pop):
         for j in range(population[i].shape[0]):
@@ -68,21 +80,24 @@ def mutaion(population):
     return population
 
 
-def run_algorithm(n_epoches):
+def run_algorithm(n_epoches, patience):
     loss_array_train = []  # массив для хранения значений потерь на тренировочном наборе данных
     loss_array_test = []  # массив для хранения значений потерь на валидационном наборе данных
     acc_array_train = []  # массив для хранения значений точности на тренировочном наборе данных
     acc_array_test = []  # массив для хранения значений точности на валидационном наборе данных
 
+    epochs_without_improvement = 0
     epoch = 0
     fitness_func = log_loss
     loss_history = []
+    accuracy_history = []
 
 
     population = generate_population()
     best_loss = np.inf
 
     pbar = tqdm(total=n_epoches)
+    start_time = time.time()
     while epoch < n_epoches:
         ''' Первый этап алгоритма: Удалить все значения пригодности для каждого нейрона'''
         neuron_fitness = np.zeros(num_neuron_pop) # пригодности нейронов
@@ -90,11 +105,12 @@ def run_algorithm(n_epoches):
 
         for _ in range(10):
 
-            '''cлучайным образом выбирается ~ нейронов из популяции'''
+            '''рандомно выбирается ~ нейронов из популяции'''
 
             random_NN = np.random.randint(0, num_neuron_pop,
                                           size=(num_hidden_neurons))
 
+            ''''''
             for neuron_id in np.unique(random_NN):
                 num_neuron_include[neuron_id] += 1
 
@@ -105,31 +121,34 @@ def run_algorithm(n_epoches):
                 num_hidden_neurons
             )
 
-            # preds = model.forward(X_train, f='relu')
-            # loss = fitness_func(y_train, preds)
-
             preds_train = model.forward(X_train, f='relu')
             loss_train = fitness_func(y_train, preds_train)
-            loss_array_train.append(loss_train)
 
             preds_val = model.forward(X_val, f='relu')
             loss_val = fitness_func(y_val, preds_val)
-            loss_array_test.append(loss_val)
 
             acc_train = accuracy_score(y_train, one_hot_from_softmax(preds_train))
-            acc_array_train.append(acc_train)
-
             acc_val = accuracy_score(y_val, one_hot_from_softmax(preds_val))
-            acc_array_test.append(acc_val)
 
-            if loss_train  < best_loss:
+            if loss_train < best_loss:
                 best_loss = loss_train
+                epochs_without_improvement = epoch
+
+
 
             loss_history.append(best_loss)
             best_model = model
 
-            neuron_fitness = update_neuron_fitness(neuron_fitness,
-                                                       random_NN, loss_train)
+            neuron_fitness = update_neuron_fitness(neuron_fitness, random_NN, loss_train)
+
+        if epoch - epochs_without_improvement >= patience:
+            print(f"Остановка обучения на эпохе: {epoch}")
+            break
+
+        loss_array_train.append(loss_train)
+        loss_array_test.append(loss_val)
+        acc_array_train.append(acc_train)
+        acc_array_test.append(acc_val)
 
         neuron_fitness /= num_neuron_include
 
@@ -137,34 +156,30 @@ def run_algorithm(n_epoches):
         population = population[sort_ids]
 
         population = crossover(population)  # кросинговер нейронов
-        population = mutaion(population)  # мутация нейронов
+        population = mutation(population)  # мутация нейронов
 
         pbar.update(1)
         epoch += 1
 
         preds_val = best_model.forward(X_val)
-        print(accuracy_score(y_val, one_hot_from_softmax(preds_val)))
 
-        print(best_loss)
+        print(f'Точность{accuracy_score(y_val, one_hot_from_softmax(preds_val))}')
+        accuracy_history.append(accuracy_score(y_val, one_hot_from_softmax(preds_val)))
+        print(f'Ошибка на этапе обучения: {best_loss}')
 
     pbar.close()
+    print(f'Минимальная ошибка: {min(loss_history)}')
+    print(f'Максимальная точность на этапе валидации: {max(accuracy_history)}')
+
+    end_time = time.time()
+    print(f'Время обучения: {end_time - start_time}')
 
     return loss_history, loss_array_train, loss_array_test, acc_array_train, acc_array_test
 
-def one_hot_from_softmax(softmax_array):
-    one_hot_array = np.zeros_like(softmax_array)
-    max_indices = np.argmax(softmax_array, axis=1)
-    for i, max_index in enumerate(max_indices):
-        one_hot_array[i, max_index] = 1
-    return one_hot_array
-
-
-
-
 if __name__=='__main__':
-
-    n_epoches = 1
-    loss_history,loss_array_train, loss_array_test, acc_array_train, acc_array_test = run_algorithm(n_epoches)
+    patience = PATIENCE
+    n_epoches = TOTAL_EPOCHES
+    loss_history,loss_array_train, loss_array_test, acc_array_train, acc_array_test = run_algorithm(n_epoches, patience)
 
     graph_data = {
         "loss_array_train": loss_array_train,
@@ -173,7 +188,7 @@ if __name__=='__main__':
         "acc_array_test": acc_array_test
     }
 
-    make_charts(graph_data)
+    make_charts(graph_data, save_img=True)
 
 
 
