@@ -7,8 +7,9 @@ from model import Model
 from sklearn.metrics import log_loss, accuracy_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from parameters import TOTAL_EPOCHES, PATIENCE
+from parameters import TOTAL_EPOCHES, PATIENCE, TOTAL_NEURONS, HIDDEN_NEURONS
 import time
+import pickle
 
 
 
@@ -21,7 +22,7 @@ def one_hot_from_softmax(softmax_array):
         one_hot_array[i, max_index] = 1
     return one_hot_array
 
-def make_charts(graph_data, save_img=False):
+def make_charts(graph_data, n_epoches, save_img=False):
     fig, (ax_loss, ax_accuracy) = plt.subplots(1, 2, figsize=(12, 5), dpi=100)
 
     ax_loss.plot(graph_data["loss_array_train"], color="orange", label="train")
@@ -29,18 +30,18 @@ def make_charts(graph_data, save_img=False):
     ax_loss.set_xlabel("Эпоха")
     ax_loss.set_ylabel("Ошибка")
     ax_loss.legend()
-    ax_loss.set_title("Потери на протяжении эпох")
+    ax_loss.set_title(f"Потери на протяжении {n_epoches} эпох")
 
     ax_accuracy.plot(graph_data["acc_array_train"], color="orange", label="train")
     ax_accuracy.plot(graph_data["acc_array_test"], color="blue", label="val")
     ax_accuracy.set_xlabel("Эпоха")
     ax_accuracy.set_ylabel("Точность")
     ax_accuracy.legend()
-    ax_accuracy.set_title("Точность на протяжении эпох")
+    ax_accuracy.set_title(f"Точность на протяжении {n_epoches} эпох")
 
     plt.tight_layout()
     if save_img:
-        plt.savefig("График обучения на 500 эпохах.png")
+        plt.savefig(f"График обучения на {n_epoches} эпохах.png")
     plt.show()
 
 def update_neuron_fitness(n_fit, n_ids_in, loss):
@@ -71,7 +72,7 @@ def crossover(population):
     return population
 
 def mutation(population):
-    p_weight = 0.08
+    p_weight = 0.001
     for i in range(num_neuron_pop):
         for j in range(population[i].shape[0]):
             if (np.random.random() < p_weight) and j % 2 != 0:
@@ -103,7 +104,7 @@ def run_algorithm(n_epoches, patience):
         neuron_fitness = np.zeros(num_neuron_pop) # пригодности нейронов
         num_neuron_include = np.ones(num_neuron_pop) # пригодности вхождений нейронов в нейронную сеть
 
-        for _ in range(10):
+        for _ in range(250):
 
             '''рандомно выбирается ~ нейронов из популяции'''
 
@@ -133,6 +134,10 @@ def run_algorithm(n_epoches, patience):
             if loss_train < best_loss:
                 best_loss = loss_train
                 epochs_without_improvement = epoch
+                best_model = model
+
+                with open("outputs/best_model.pkl", "wb") as f:
+                    pickle.dump(best_model, f)
 
 
 
@@ -155,7 +160,7 @@ def run_algorithm(n_epoches, patience):
         sort_ids = np.argsort(neuron_fitness)
         population = population[sort_ids]
 
-        population = crossover(population)  # кросинговер нейронов
+        population = crossover(population)  # скрещивание нейронов
         population = mutation(population)  # мутация нейронов
 
         pbar.update(1)
@@ -166,13 +171,34 @@ def run_algorithm(n_epoches, patience):
         print(f'Точность{accuracy_score(y_val, one_hot_from_softmax(preds_val))}')
         accuracy_history.append(accuracy_score(y_val, one_hot_from_softmax(preds_val)))
         print(f'Ошибка на этапе обучения: {best_loss}')
-
     pbar.close()
+
+
+
+    print('=======================================')
     print(f'Минимальная ошибка: {min(loss_history)}')
     print(f'Максимальная точность на этапе валидации: {max(accuracy_history)}')
 
     end_time = time.time()
-    print(f'Время обучения: {end_time - start_time}')
+    total_time = end_time - start_time
+    print(f'Общее время обучения: {round(total_time, 2)}')
+    print('=======================================')
+
+    with open("outputs/training_summary.txt", "w", encoding="utf-8") as file:
+        file.write('==========================================\n')
+        file.write(f'Размеры обучающего набора MNIST: {X_train.shape}\n')
+        file.write(f'Размеры валидационного набора MNIST: {X_val.shape}\n')
+        file.write('==========================================\n')
+        file.write(f'Количество нейронов в популяции: {TOTAL_NEURONS}\n')
+        file.write(f'Количество скрытых нейронов: {HIDDEN_NEURONS}\n')
+        file.write(f'Заданное количесво эпох: {TOTAL_EPOCHES}\n')
+        file.write('==========================================\n')
+        file.write(f'Обучение остановилось на {epoch} эпохе\n')
+        file.write(f'Минимальная ошибка: {min(loss_history)}\n')
+        file.write(f'Максимальная точность на этапе валидации: {max(accuracy_history)}\n')
+        file.write(f'Общее время обучения: {round(total_time, 2)} сек.\n')
+        file.write('==========================================\n')
+
 
     return loss_history, loss_array_train, loss_array_test, acc_array_train, acc_array_test
 
@@ -188,7 +214,7 @@ if __name__=='__main__':
         "acc_array_test": acc_array_test
     }
 
-    make_charts(graph_data, save_img=True)
+    make_charts(graph_data,n_epoches, save_img=True)
 
 
 

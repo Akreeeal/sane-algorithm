@@ -69,30 +69,6 @@ class Model:
                 out[i, j] = np.exp(x[i, j]) / np.sum(np.exp(x[i]))
         return out
 
-    def backward(self, x, y, learning_rate=0.01):
-        """
-        Функция для обратного распространения ошибки
-        и обновления весов
-        """
-        # Прямое распространение
-        hidden_output = self.ReLU(np.matmul(x, self.W1))
-        final_output = self.SoftMax(np.matmul(hidden_output, self.W2))
-
-        # Ошибка на выходном слое
-        output_error = final_output - y
-
-        # Градиент на выходном слое
-        output_gradient = np.matmul(hidden_output.T, output_error)
-
-        # Обновление весов на выходном слое
-        self.W2 -= learning_rate * output_gradient
-
-        # Градиент на скрытом слое
-        hidden_error = np.matmul(output_error, self.W2.T)
-        hidden_gradient = np.matmul(x.T, hidden_error * (hidden_output > 0))
-
-        # Обновление весов на скрытом слое
-        self.W1 -= learning_rate * hidden_gradient
 
     def create_weight_matrix(self):
         """

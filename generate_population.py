@@ -1,7 +1,7 @@
 import numpy as np
-from load_data import X_train, X_val, y_train, y_val
 from pprint import pprint
 from parameters import *
+
 
 
 
