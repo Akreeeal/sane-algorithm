@@ -5,7 +5,7 @@ from load_data import X_val, y_val
 from sklearn.metrics import accuracy_score
 from run_sane import one_hot_from_softmax
 from generate_population import num_input_neurons, num_hidden_neurons, num_output_neurons
-from topology2 import draw_neural_network
+from topology import draw_neural_network
 
 
 with open("outputs/best_model.pkl", "rb") as f:

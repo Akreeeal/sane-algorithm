@@ -3,6 +3,8 @@ import numpy as np
 
 
 mnist = tf.keras.datasets.mnist
+
+
 (X_train, y_train), (X_val, y_val) = mnist.load_data()
 
 
@@ -25,6 +27,8 @@ X_train = X_train[:1000]
 y_train = y_train[:1000]
 X_val = X_val[:200]
 y_val = y_val[:200]
+
+
 
 print(f'Размеры обучающего набора: {X_train.shape}')
 print(f'Размеры валидационного набора: {X_val.shape}')

@@ -11,6 +11,8 @@ num_hidden_neurons = HIDDEN_NEURONS
 num_output_neurons = OUTPUT_NEURONS
 
 
+
+
 def generate_population():
     ''' генерируем матрицу размером (num_neuron_pop, num_neuron_connect * 2), каждая строка этой матрицы это нейрон,
     а каждый столбец - связь этого нейрона. Заполняется случаеными числами.'''

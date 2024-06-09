@@ -1,6 +1,6 @@
 from load_data import X_train, y_train
 
-from load_dataset import x_train_cc, x_test_cc, y_train_cc, y_test_cc
+
 
 
 TOTAL_NEURONS = 500
