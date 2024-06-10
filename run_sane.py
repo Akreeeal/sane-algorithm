@@ -44,17 +44,10 @@ def make_charts(graph_data, n_epoches, save_img=False):
         plt.savefig(f"График обучения на {n_epoches} эпохах.png")
     plt.show()
 
-def update_neuron_fitness(n_fit, n_ids_in, loss):
-    """
-    Функция обновления значений приспособленности нейронов
-    Аргументы:
-        - n_fit - Массив приспособленностей нейронов (ndarray)
-        - n_ids_in - Массив индексов нейронов вошедших в нейронную сеть (ndarray)
-        - loss - Значение приспособленности нейронной сети
-    """
-    for i in np.unique(n_ids_in):
-        n_fit[i] += loss
-    return n_fit
+def update_neuron_fitness(neuron_fitness, random_NN, loss_train):
+    for i in np.unique(random_NN):
+        neuron_fitness[i] += loss_train
+    return neuron_fitness
 
 def crossover(population):
     n_cross_neurons = int(0.25*population.shape[0])
@@ -82,10 +75,10 @@ def mutation(population):
 
 
 def run_algorithm(n_epoches, patience):
-    loss_array_train = []  # массив для хранения значений потерь на тренировочном наборе данных
-    loss_array_test = []  # массив для хранения значений потерь на валидационном наборе данных
-    acc_array_train = []  # массив для хранения значений точности на тренировочном наборе данных
-    acc_array_test = []  # массив для хранения значений точности на валидационном наборе данных
+    loss_array_train = []
+    loss_array_test = []
+    acc_array_train = []
+    acc_array_test = []
 
     epochs_without_improvement = 0
     epoch = 0
@@ -93,44 +86,46 @@ def run_algorithm(n_epoches, patience):
     loss_history = []
     accuracy_history = []
 
-
+    '''Генерируется популяция со случаными весами. В случае задачи с полносвязной 
+    нейронной сетью учитываются все связи нейронов.'''
     population = generate_population()
     best_loss = np.inf
 
     pbar = tqdm(total=n_epoches)
     start_time = time.time()
     while epoch < n_epoches:
-        ''' Первый этап алгоритма: Удалить все значения пригодности для каждого нейрона'''
+        ''' Cбрасываются значения функции приспособленности нейронов.'''
         neuron_fitness = np.zeros(num_neuron_pop) # пригодности нейронов
-        num_neuron_include = np.ones(num_neuron_pop) # пригодности вхождений нейронов в нейронную сеть
+        num_neuron_include = np.ones(num_neuron_pop) # пригодности вхождений нейронов в НС
 
         for _ in range(250):
-
-            '''рандомно выбирается ~ нейронов из популяции'''
-
+            '''На этапе оценки случайные подвыборки нейронов размером N выбираются и 
+            комбинируются для формирования нейронной сети. '''
             random_NN = np.random.randint(0, num_neuron_pop,
                                           size=(num_hidden_neurons))
 
-            ''''''
+            '''Обновление кол-ва вхождениий в НС'''
             for neuron_id in np.unique(random_NN):
                 num_neuron_include[neuron_id] += 1
 
+            '''Строится сеть из выбранных случаным образом нейронов. И подается 
+            в модель с выбранными параметрами.'''
             net = population[random_NN]
             model = Model(
                 net, num_input_neurons,
                 num_output_neurons,
                 num_hidden_neurons
             )
-
+            '''Оценивается работа сети и вычисляется ошибка с помощью функции приспособленности'''
             preds_train = model.forward(X_train, f='relu')
             loss_train = fitness_func(y_train, preds_train)
 
             preds_val = model.forward(X_val, f='relu')
             loss_val = fitness_func(y_val, preds_val)
-
+            '''Вычисляется точность валидационной выборки'''
             acc_train = accuracy_score(y_train, one_hot_from_softmax(preds_train))
             acc_val = accuracy_score(y_val, one_hot_from_softmax(preds_val))
-
+            '''Проверка изменения ошибки '''
             if loss_train < best_loss:
                 best_loss = loss_train
                 epochs_without_improvement = epoch
@@ -139,13 +134,15 @@ def run_algorithm(n_epoches, patience):
                 with open("outputs/best_model.pkl", "wb") as f:
                     pickle.dump(best_model, f)
 
-
+            ''' (Процесс продолжается до тех пор, пока каждый нейрон не примет 
+            участие в достаточном количестве сетей).'''
 
             loss_history.append(best_loss)
-            best_model = model
 
+            '''Обноление значений приспособленности нейронов'''
             neuron_fitness = update_neuron_fitness(neuron_fitness, random_NN, loss_train)
 
+        '''Принудительная остановка алгоритма'''
         if epoch - epochs_without_improvement >= patience:
             print(f"Остановка обучения на эпохе: {epoch}")
             break
@@ -155,11 +152,15 @@ def run_algorithm(n_epoches, patience):
         acc_array_train.append(acc_train)
         acc_array_test.append(acc_val)
 
+        '''Cредняя пригодность каждого нейрона вычисляется путем деления суммы его
+оценок на количество сетей, в которых он участвовал.'''
         neuron_fitness /= num_neuron_include
 
+        '''Сортировка популяции нейронов по приспособленности'''
         sort_ids = np.argsort(neuron_fitness)
         population = population[sort_ids]
 
+        '''Этап скещивания и мутации нейронов.'''
         population = crossover(population)  # скрещивание нейронов
         population = mutation(population)  # мутация нейронов
 
